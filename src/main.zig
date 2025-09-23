@@ -4,9 +4,11 @@ const win32 = @cImport({
     @cInclude("winuser.h");
 });
 
+var stdout: @TypeOf(std.io.getStdOut().writer()) = undefined;
+
 const Args = struct {
-    threshold: c_uint = 3 * 1000,
-    delta: c_int = -100,
+    threshold: c_uint = 30 * 1000,
+    delta: c_int = -5,
     verbose: bool = false,
 
     const Self = @This();
@@ -16,11 +18,38 @@ const Args = struct {
         defer std.process.argsFree(allocator, args);
         var result: Self = .{};
         var i: usize = 1;
-        while (i < args.len) : (i += 1) {
+        args: while (i < args.len) : (i += 1) {
             const arg = args[i];
+            if (std.mem.eql(u8, arg, "-h") or std.mem.eql(u8, arg, "--help")) {
+                try stdout.print("Usage: {s} [OPTIONS]\n\n", .{args[0]});
+                try stdout.print("Options:\n", .{});
+                inline for (@typeInfo(Self).Struct.fields) |field| {
+                    var name: [field.name.len]u8 = undefined;
+                    @memcpy(&name, field.name);
+                    std.mem.replaceScalar(u8, &name, '_', '-');
+                    if (@typeInfo(field.type) == .Bool) {
+                        try stdout.print(
+                            "--{s}\n",
+                            .{&name},
+                        );
+                    } else {
+                        const default = @as(*field.type, @constCast(
+                            @alignCast(@ptrCast(field.default_value.?)),
+                        )).*;
+                        try stdout.print(
+                            "--{s:<10}\t\t(default: {any})\n",
+                            .{ &name, default },
+                        );
+                    }
+                }
+                return error.Help;
+            }
             if (!std.mem.startsWith(u8, arg, "--")) return error.InvalidArg;
             _ = std.mem.replaceScalar(u8, arg, '-', '_');
             inline for (@typeInfo(Self).Struct.fields) |field| {
+                const default = @as(*bool, @constCast(@ptrCast(
+                    field.default_value.?,
+                ))).*;
                 if (std.mem.eql(u8, arg[2..], field.name)) {
                     switch (@typeInfo(field.type)) {
                         .Int => |t| {
@@ -37,27 +66,32 @@ const Args = struct {
                                 ),
                             };
                             i += 1;
+                            continue :args;
                         },
-                        .Bool => @field(
-                            result,
-                            field.name,
-                        ) = !@as(*bool, @constCast(@ptrCast(
-                            field.default_value.?,
-                        ))).*,
+                        .Bool => {
+                            @field(result, field.name) = !default;
+                            continue :args;
+                        },
                         else => unreachable,
                     }
                 }
             }
+            return error.InvalidArg;
         }
         return result;
     }
 };
 
 pub fn main() !void {
+    stdout = std.io.getStdOut().writer();
+
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer std.debug.assert(gpa.deinit() != .leak);
     const allocator = gpa.allocator();
-    var args = try Args.parse(allocator);
+    var args = Args.parse(allocator) catch |err| switch (err) {
+        error.Help => return,
+        else => return err,
+    };
     defer args.deinit();
 
     var info: win32.LASTINPUTINFO = undefined;
