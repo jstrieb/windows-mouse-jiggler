@@ -1,0 +1,33 @@
+name: Build Mouse Jiggler
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -euxo pipefail {0}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.13.0
+      - run: |
+          zig version
+          zig build
+      - run: |
+          gh release create \
+            "${{ inputs.tag }}" \
+            --title "Version ${{ inputs.tag }} Release" \
+            zig-out/bin/mouse-jiggler.exe
