@@ -1,11 +1,6 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    const target = b.standardTargetOptions(.{
-        .default_target = .{
-            .os_tag = .windows,
-        },
-    });
     const optimize = b.standardOptimizeOption(.{
         .preferred_optimize_mode = .ReleaseSafe,
     });
@@ -13,7 +8,9 @@ pub fn build(b: *std.Build) void {
     const exe = b.addExecutable(.{
         .name = "mouse-jiggler",
         .root_source_file = b.path("src/main.zig"),
-        .target = target,
+        .target = b.resolveTargetQuery(std.Build.parseTargetQuery(.{
+            .arch_os_abi = "x86_64-windows",
+        }) catch unreachable),
         .optimize = optimize,
     });
     exe.linkLibC();

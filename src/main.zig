@@ -7,25 +7,45 @@ const win32 = @cImport({
 const Args = struct {
     threshold: c_uint = 3 * 1000,
     delta: c_int = -100,
+    verbose: bool = false,
 
     const Self = @This();
 
     pub fn parse(allocator: std.mem.Allocator) !Self {
         const args = try std.process.argsAlloc(allocator);
         defer std.process.argsFree(allocator, args);
-        const result: Self = .{};
+        var result: Self = .{};
         var i: usize = 1;
         while (i < args.len) : (i += 1) {
+            const arg = args[i];
+            if (!std.mem.startsWith(u8, arg, "--")) return error.InvalidArg;
+            _ = std.mem.replaceScalar(u8, arg, '-', '_');
             inline for (@typeInfo(Self).Struct.fields) |field| {
-                // TODO
-                if (true) continue;
-                switch (@typeInfo(field.type)) {
-                    .Int => |t| switch (t.signedness) {
-                        // TODO
-                        .signed => {},
-                        // TODO
-                        .unsigned => {},
-                    },
+                if (std.mem.eql(u8, arg[2..], field.name)) {
+                    switch (@typeInfo(field.type)) {
+                        .Int => |t| {
+                            @field(result, field.name) = switch (t.signedness) {
+                                .signed => try std.fmt.parseInt(
+                                    field.type,
+                                    args[i + 1],
+                                    0,
+                                ),
+                                .unsigned => try std.fmt.parseUnsigned(
+                                    field.type,
+                                    args[i + 1],
+                                    0,
+                                ),
+                            };
+                            i += 1;
+                        },
+                        .Bool => @field(
+                            result,
+                            field.name,
+                        ) = !@as(*bool, @constCast(@ptrCast(
+                            field.default_value.?,
+                        ))).*,
+                        else => unreachable,
+                    }
                 }
             }
         }
