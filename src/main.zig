@@ -7,7 +7,7 @@ const win32 = @cImport({
 var stdout: @TypeOf(std.io.getStdOut().writer()) = undefined;
 
 const Args = struct {
-    threshold: c_uint = 30 * 1000,
+    threshold: u64 = 30 * 1000,
     delta: c_int = -5,
     verbose: bool = false,
 
