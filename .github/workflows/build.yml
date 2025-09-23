@@ -24,10 +24,11 @@ jobs:
         with:
           version: 0.13.0
       - run: |
-          zig version
           zig build
-      - run: |
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
           gh release create \
             "${{ inputs.tag }}" \
-            --title "Version ${{ inputs.tag }} Release" \
+            --title "${{ inputs.tag }} Release" \
             zig-out/bin/mouse-jiggler.exe
